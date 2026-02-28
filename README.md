@@ -64,7 +64,7 @@ dotnet add package Hellenic.Identity.SDK
 
 **PackageReference**
 ```xml
-<PackageReference Include="Hellenic.Identity.SDK" Version="1.0.18" />
+<PackageReference Include="Hellenic.Identity.SDK" Version="1.0.20" />
 ```
 
 ## Quick Start
@@ -1481,7 +1481,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Documentation**: Check the `examples/` folder for complete usage examples
 - **Issues**: Create an issue for bug reports or feature requests
-- **Repository**: [https://github.com/hellenic-developmenthellenic-identity-sdk-csharp](https://github.com/hellenic-developmenthellenic-identity-sdk-csharp)
+- **Repository**: [https://github.com/hellenic-development/hellenic-identity-sdk-csharp](https://github.com/hellenic-development/hellenic-identity-sdk-csharp)
 
 ---
 
