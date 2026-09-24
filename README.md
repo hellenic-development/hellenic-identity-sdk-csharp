@@ -1223,7 +1223,8 @@ public interface IIdentityClient<TUser> where TUser : class
     Task<bool> AdminResetUserPasswordAsync(AdminResetUserPasswordRequest request);
 
     /// <summary>
-    /// Admin operation: List users with pagination and filtering
+    /// Admin operation: List users with pagination and filtering.
+    /// Sends QUERY /u/list (RFC 10008); the server also accepts POST.
     /// </summary>
     /// <param name="pageOptions">Pagination options</param>
     /// <param name="filter">Filter options</param>

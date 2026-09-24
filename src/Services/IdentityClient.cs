@@ -1087,7 +1087,8 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
     }
 
     /// <summary>
-    /// Admin operation: List users with pagination and filtering
+    /// Admin operation: List users with pagination and filtering.
+    /// Sends QUERY /u/list (RFC 10008); the server also accepts POST.
     /// </summary>
     /// <param name="pageOptions">Pagination options</param>
     /// <param name="filter">Filter options</param>
@@ -1165,9 +1166,15 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
             var queryString = string.Join("&", queryParams);
             var url = $"/u/list?{queryString}";
             
-            var response = await _httpClient.PostAsync(url,
-                new StringContent(requestJson, Encoding.UTF8, "application/json"));
-            
+            // QUERY (RFC 10008) with a JSON body, like the Go SDK's AdminListUsers.
+            // The server still accepts POST on this route.
+            var httpRequest = new HttpRequestMessage(new HttpMethod("QUERY"), url)
+            {
+                Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
+            };
+
+            var response = await _httpClient.SendAsync(httpRequest);
+
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
