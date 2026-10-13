@@ -1391,6 +1391,271 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
         }
     }
 
+    #region Client management
+
+    public async Task<CreateClientResponse> AdminCreateClientAsync(CreateClientRequest request)
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        try
+        {
+            _logger.LogDebug("Creating client: {Name} (kind: {Kind})", request.Name, request.Kind);
+
+            var requestJson = JsonSerializer.Serialize(request);
+
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("X-Token", _settings.ClientToken);
+
+            var response = await _httpClient.PostAsync("/clients",
+                new StringContent(requestJson, Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+            {
+                // The response carries the new client credentials, never log its body.
+                var json = await response.Content.ReadAsStringAsync();
+                var createResponse = JsonSerializer.Deserialize<CreateClientResponse>(json);
+                return createResponse ?? throw new InvalidOperationException("Failed to deserialize create client response");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("ERR: Create client failed: {StatusCode} - Response: {ErrorContent}",
+                response.StatusCode, errorContent);
+            throw new InvalidOperationException($"Create client failed with status {(int)response.StatusCode} ({response.StatusCode}): {errorContent}");
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            _logger.LogDebug(ex, "ERR: Admin create client failed");
+            throw new InvalidOperationException("Admin create client failed", ex);
+        }
+    }
+
+    public async Task<PagedResponse<OAuth2Client>> AdminListClientsAsync(PageOptions page, ClientFilter? filter = null)
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        try
+        {
+            _logger.LogDebug("Listing clients with page: {Page}, size: {Size}", page.Page, page.Size);
+
+            var requestBody = filter ?? new ClientFilter();
+            var requestJson = JsonSerializer.Serialize(requestBody);
+            _logger.LogDebug("Admin list clients request body: {RequestBody}", requestJson);
+
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("X-Token", _settings.ClientToken);
+
+            var url = $"/clients/list?page={GetCurrentPage(page.Page)}&size={GetLimit(page.Size)}";
+
+            // QUERY (RFC 10008) with a JSON body, like the Go SDK's AdminListClients.
+            var httpRequest = new HttpRequestMessage(new HttpMethod("QUERY"), url)
+            {
+                Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
+            };
+
+            var response = await _httpClient.SendAsync(httpRequest);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var pagedResponse = JsonSerializer.Deserialize<PagedResponse<OAuth2Client>>(json);
+                return pagedResponse ?? throw new InvalidOperationException("Failed to deserialize clients list response");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("ERR: List clients failed: {StatusCode} - Response: {ErrorContent}",
+                response.StatusCode, errorContent);
+            throw new InvalidOperationException($"List clients failed with status {(int)response.StatusCode} ({response.StatusCode}): {errorContent}");
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            _logger.LogDebug(ex, "ERR: Admin list clients failed");
+            throw new InvalidOperationException("Admin list clients failed", ex);
+        }
+    }
+
+    public async Task<long> AdminCountClientsAsync()
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        try
+        {
+            _logger.LogDebug("Counting clients");
+
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("X-Token", _settings.ClientToken);
+
+            var response = await _httpClient.GetAsync("/clients/count");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var countResponse = JsonSerializer.Deserialize<CountClientsResponse>(json);
+                return countResponse?.TotalCount ?? throw new InvalidOperationException("Failed to deserialize count clients response");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("ERR: Count clients failed: {StatusCode} - Response: {ErrorContent}",
+                response.StatusCode, errorContent);
+            throw new InvalidOperationException($"Count clients failed with status {(int)response.StatusCode} ({response.StatusCode}): {errorContent}");
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            _logger.LogDebug(ex, "ERR: Admin count clients failed");
+            throw new InvalidOperationException("Admin count clients failed", ex);
+        }
+    }
+
+    public async Task<OAuth2Client> AdminGetClientAsync(string id)
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        try
+        {
+            _logger.LogDebug("Getting client: {Id}", id);
+
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("X-Token", _settings.ClientToken);
+
+            var response = await _httpClient.GetAsync(ClientPath(id));
+
+            if (response.IsSuccessStatusCode)
+            {
+                // The response carries the client secret, never log its body.
+                var json = await response.Content.ReadAsStringAsync();
+                var client = JsonSerializer.Deserialize<OAuth2Client>(json);
+                return client ?? throw new InvalidOperationException("Failed to deserialize client response");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("ERR: Get client failed: {StatusCode} - Response: {ErrorContent}",
+                response.StatusCode, errorContent);
+            throw new InvalidOperationException($"Get client failed with status {(int)response.StatusCode} ({response.StatusCode}): {errorContent}");
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            _logger.LogDebug(ex, "ERR: Admin get client failed");
+            throw new InvalidOperationException("Admin get client failed", ex);
+        }
+    }
+
+    public async Task<bool> AdminDeleteClientAsync(string id)
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        _logger.LogDebug("Deleting client: {Id}", id);
+        return await SendNoContentAsync(new HttpRequestMessage(HttpMethod.Delete, ClientPath(id)), "Delete client");
+    }
+
+    public async Task<ClientCredentials> AdminIssueClientTokenAsync(string id)
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        try
+        {
+            _logger.LogDebug("Issuing token for client: {Id}", id);
+
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("X-Token", _settings.ClientToken);
+
+            var response = await _httpClient.PostAsync($"{ClientPath(id)}/token", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // The response carries the client credentials, never log its body.
+                var json = await response.Content.ReadAsStringAsync();
+                var credentials = JsonSerializer.Deserialize<ClientCredentials>(json);
+                return credentials ?? throw new InvalidOperationException("Failed to deserialize client credentials response");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("ERR: Issue client token failed: {StatusCode} - Response: {ErrorContent}",
+                response.StatusCode, errorContent);
+            throw new InvalidOperationException($"Issue client token failed with status {(int)response.StatusCode} ({response.StatusCode}): {errorContent}");
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            _logger.LogDebug(ex, "ERR: Admin issue client token failed");
+            throw new InvalidOperationException("Admin issue client token failed", ex);
+        }
+    }
+
+    public async Task<bool> AdminRevokeClientTokensAsync(string id)
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException("Client not initialized");
+        }
+
+        _logger.LogDebug("Revoking tokens of client: {Id}", id);
+        return await SendNoContentAsync(new HttpRequestMessage(HttpMethod.Post, $"{ClientPath(id)}/revoke-tokens"), "Revoke client tokens");
+    }
+
+    /// <summary>
+    /// Path of a client resource, with the ID escaped like the Go SDK's url.PathEscape.
+    /// </summary>
+    private static string ClientPath(string id)
+    {
+        return $"/clients/{Uri.EscapeDataString(id)}";
+    }
+
+    /// <summary>
+    /// Sends a bodiless admin request and maps 204 to true and 304 to false
+    /// (mirrors the Go SDK's clientNoContent). Any other status throws.
+    /// </summary>
+    private async Task<bool> SendNoContentAsync(HttpRequestMessage request, string operation)
+    {
+        try
+        {
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("X-Token", _settings.ClientToken);
+
+            using (request)
+            {
+                var response = await _httpClient.SendAsync(request);
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+                {
+                    return true;
+                }
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+                {
+                    return false;
+                }
+
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("ERR: {Operation} failed: {StatusCode} - Response: {ErrorContent}",
+                    operation, response.StatusCode, errorContent);
+                throw new InvalidOperationException($"{operation} failed with status {(int)response.StatusCode} ({response.StatusCode}): {errorContent}");
+            }
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            _logger.LogDebug(ex, "ERR: {Operation} failed", operation);
+            throw new InvalidOperationException($"{operation} failed", ex);
+        }
+    }
+
+    #endregion
+
     private List<SecurityKey> ConvertJwkSetToSecurityKeys(JwkSet? jwkSet)
     {
         var keys = new List<SecurityKey>();

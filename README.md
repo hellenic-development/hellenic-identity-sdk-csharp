@@ -1241,6 +1241,42 @@ public interface IIdentityClient<TUser> where TUser : class
 }
 ```
 
+### Client management
+
+These methods manage the client applications of the identity server through the `/clients` routes. The configured `ClientToken` must belong to an admin client.
+
+| Method | Route | Result |
+|--------|-------|--------|
+| `AdminCreateClientAsync(CreateClientRequest request)` | `POST /clients` | `CreateClientResponse`: the new credentials and the client |
+| `AdminListClientsAsync(PageOptions page, ClientFilter? filter = null)` | `QUERY /clients/list` | `PagedResponse<OAuth2Client>`, secrets blank |
+| `AdminCountClientsAsync()` | `GET /clients/count` | `long` |
+| `AdminGetClientAsync(string id)` | `GET /clients/{id}` | `OAuth2Client`, secret included |
+| `AdminDeleteClientAsync(string id)` | `DELETE /clients/{id}` | `true` on 204, `false` on 304 |
+| `AdminIssueClientTokenAsync(string id)` | `POST /clients/{id}/token` | `ClientCredentials` |
+| `AdminRevokeClientTokensAsync(string id)` | `POST /clients/{id}/revoke-tokens` | `true` on 204, `false` on 304 |
+
+Unlike the user helpers, these methods throw `InvalidOperationException` on any 4xx or 5xx answer, with the status code in the message. Deleting the calling client or the last admin client answers 400, an unknown ID answers 404.
+
+Create a server app and read its credentials:
+
+```csharp
+var created = await identityClient.AdminCreateClientAsync(new CreateClientRequest
+{
+    Name = "billing-service",
+    Website = "https://billing.example.com",
+    LogoURL = "https://billing.example.com/logo.png",
+    Kind = ClientKind.Server // or ClientKind.User (needs RedirectURI) or ClientKind.Admin
+});
+
+// The new service accepts tokens for this audience (it is the client ID).
+var audience = created.Audience;
+// Its own ClientToken and EncryptionKey settings. They are shown once, store them in a secret store.
+var token = created.Token;
+var encryptionKey = created.EncryptionKey; // null for the user kind
+```
+
+Leave the max ages null to get the defaults of the kind. To rotate a client's token, call `AdminRevokeClientTokensAsync` first and then `AdminIssueClientTokenAsync`; revoking invalidates every token issued before it.
+
 ### Models
 
 ```csharp
@@ -1426,6 +1462,78 @@ public class AdminResetUserPasswordRequest
     
     [JsonPropertyName("password")]
     public string Password { get; set; } = string.Empty;
+}
+```
+
+Client management models (`src/Models/ClientModels.cs`):
+
+```csharp
+public static class ClientKind
+{
+    public const string Server = "server";
+    public const string User = "user";
+    public const string Admin = "admin";
+}
+
+// Mirrors Go oauth2.Client
+public class OAuth2Client
+{
+    public string Id { get; set; }               // "id"
+    public DateTime? CreatedAt { get; set; }     // "created_at"
+    public DateTime? UpdatedAt { get; set; }     // "updated_at"
+    public string Name { get; set; }            // "name"
+    public string Website { get; set; }          // "website"
+    public string LogoURL { get; set; }          // "logo_url"
+    public string RedirectURI { get; set; }      // "redirect_uri"
+    public string VerificationURI { get; set; }  // "verification_uri"
+    public string? Secret { get; set; }          // "secret", blank in list responses
+    public List<string> GrantTypes { get; set; } // "grant_types"
+    public List<string> Scopes { get; set; }     // "scopes"
+    public int CodeMaxAge { get; set; }          // "code_max_age", seconds
+    public int AccessMaxAge { get; set; }        // "access_max_age", seconds
+    public int RefreshMaxAge { get; set; }       // "refresh_max_age", seconds
+    public int Version { get; set; }             // "version"
+}
+
+// Body of POST /clients. Null values are left out so the server applies the kind defaults.
+public class CreateClientRequest
+{
+    public string Name { get; set; }             // "name"
+    public string Website { get; set; }          // "website"
+    public string LogoURL { get; set; }          // "logo_url"
+    public string Kind { get; set; }             // "kind", a ClientKind constant
+    public string? RedirectURI { get; set; }     // "redirect_uri", required for the user kind
+    public string? VerificationURI { get; set; } // "verification_uri"
+    public int? CodeMaxAge { get; set; }         // "code_max_age"
+    public int? AccessMaxAge { get; set; }       // "access_max_age"
+    public int? RefreshMaxAge { get; set; }      // "refresh_max_age"
+}
+
+public class ClientCredentials
+{
+    public string Audience { get; set; }         // "audience", the client ID
+    public string Kind { get; set; }             // "kind"
+    public string Token { get; set; }            // "token"
+    public string? EncryptionKey { get; set; }   // "encryption_key", server and admin clients only
+}
+
+// The JSON is flat: {audience, kind, token, encryption_key, client}
+public class CreateClientResponse : ClientCredentials
+{
+    public OAuth2Client Client { get; set; }     // "client", secret included
+}
+
+public class ClientFilter
+{
+    public string? Name { get; set; }            // "name"
+    public string? Scope { get; set; }           // "scope"
+    public string? Sort { get; set; }            // "sort": "name", "created_at" or "updated_at"
+    public bool SortDescending { get; set; }     // "sort_descending"
+}
+
+public class CountClientsResponse
+{
+    public long TotalCount { get; set; }         // "total_count"
 }
 ```
 

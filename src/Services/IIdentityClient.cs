@@ -336,4 +336,80 @@ public interface IIdentityClient<TUser> where TUser : class
     /// </code>
     /// </example>
     Task<CountResponse<long>> AdminUpdateUsersPartialAsync(List<PartialUpdateSpec> updates);
+
+    /// <summary>
+    /// Admin operation: Create a client application.
+    /// The response carries the credentials of the new client: its token and, for server and admin
+    /// clients, the encryption key. They are shown once, store them.
+    /// Unlike the older user helpers, the client management methods throw on 4xx and 5xx instead of returning false.
+    /// </summary>
+    /// <param name="request">Create client request, use the <see cref="ClientKind"/> constants for its kind</param>
+    /// <returns>The credentials of the new client and the client itself, secret included</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error (400 invalid request, 409 name taken)</exception>
+    /// <example>
+    /// <code>
+    /// var created = await client.AdminCreateClientAsync(new CreateClientRequest
+    /// {
+    ///     Name = "billing-service",
+    ///     Website = "https://billing.example.com",
+    ///     LogoURL = "https://billing.example.com/logo.png",
+    ///     Kind = ClientKind.Server
+    /// });
+    ///
+    /// // created.Audience is the client ID, created.Token and created.EncryptionKey go to the service configuration.
+    /// </code>
+    /// </example>
+    Task<CreateClientResponse> AdminCreateClientAsync(CreateClientRequest request);
+
+    /// <summary>
+    /// Admin operation: List client applications with pagination (QUERY /clients/list).
+    /// The secrets of the listed clients are blank, use <see cref="AdminGetClientAsync"/> to read one.
+    /// </summary>
+    /// <param name="page">Pagination options, Details is not used</param>
+    /// <param name="filter">Optional filter, null lists every client</param>
+    /// <returns>A page of clients</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error</exception>
+    Task<PagedResponse<OAuth2Client>> AdminListClientsAsync(PageOptions page, ClientFilter? filter = null);
+
+    /// <summary>
+    /// Admin operation: Count the client applications.
+    /// </summary>
+    /// <returns>The total number of clients</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error</exception>
+    Task<long> AdminCountClientsAsync();
+
+    /// <summary>
+    /// Admin operation: Get a client application by its ID, secret included.
+    /// </summary>
+    /// <param name="id">Client ID</param>
+    /// <returns>The client</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error (404 unknown client)</exception>
+    Task<OAuth2Client> AdminGetClientAsync(string id);
+
+    /// <summary>
+    /// Admin operation: Delete a client application by its ID.
+    /// Unlike <see cref="AdminDeleteUserAsync"/>, this method throws on 4xx and 5xx instead of returning false.
+    /// </summary>
+    /// <param name="id">Client ID</param>
+    /// <returns>True on 204, false on 304 (nothing was deleted)</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers 400 or above (400 when the caller deletes itself or the last admin client, 404 unknown client)</exception>
+    Task<bool> AdminDeleteClientAsync(string id);
+
+    /// <summary>
+    /// Admin operation: Issue a new token for a client application.
+    /// Tokens issued earlier stay valid. To rotate, call <see cref="AdminRevokeClientTokensAsync"/> first, then issue the new token.
+    /// </summary>
+    /// <param name="id">Client ID</param>
+    /// <returns>The client credentials, EncryptionKey is null for the user kind</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error (404 unknown client)</exception>
+    Task<ClientCredentials> AdminIssueClientTokenAsync(string id);
+
+    /// <summary>
+    /// Admin operation: Revoke every token issued for a client application.
+    /// Unlike the older user helpers, this method throws on 4xx and 5xx instead of returning false.
+    /// </summary>
+    /// <param name="id">Client ID</param>
+    /// <returns>True on 204, false on 304 (the server does not send it today)</returns>
+    /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers 400 or above (404 unknown client)</exception>
+    Task<bool> AdminRevokeClientTokensAsync(string id);
 }
