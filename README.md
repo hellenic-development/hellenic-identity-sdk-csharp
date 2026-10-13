@@ -1224,7 +1224,7 @@ public interface IIdentityClient<TUser> where TUser : class
 
     /// <summary>
     /// Admin operation: List users with pagination and filtering.
-    /// Sends QUERY /u/list (RFC 10008); the server also accepts POST.
+    /// Sends POST /u/list with a JSON body. The server also accepts QUERY, but proxies such as the Azure Container Apps ingress reject it, so the SDK sends POST.
     /// </summary>
     /// <param name="pageOptions">Pagination options</param>
     /// <param name="filter">Filter options</param>
@@ -1248,14 +1248,16 @@ These methods manage the client applications of the identity server through the 
 | Method | Route | Result |
 |--------|-------|--------|
 | `AdminCreateClientAsync(CreateClientRequest request)` | `POST /clients` | `CreateClientResponse`: the new credentials and the client |
-| `AdminListClientsAsync(PageOptions page, ClientFilter? filter = null)` | `QUERY /clients/list` | `PagedResponse<OAuth2Client>`, secrets blank |
+| `AdminListClientsAsync(PageOptions page, ClientFilter? filter = null)` | `POST /clients/list` | `PagedResponse<OAuth2Client>`, secrets blank |
 | `AdminCountClientsAsync()` | `GET /clients/count` | `long` |
 | `AdminGetClientAsync(string id)` | `GET /clients/{id}` | `OAuth2Client`, secret included |
 | `AdminDeleteClientAsync(string id)` | `DELETE /clients/{id}` | `true` on 204, `false` on 304 |
 | `AdminIssueClientTokenAsync(string id)` | `POST /clients/{id}/token` | `ClientCredentials` |
 | `AdminRevokeClientTokensAsync(string id)` | `POST /clients/{id}/revoke-tokens` | `true` on 204, `false` on 304 |
 
-Unlike the user helpers, these methods throw `InvalidOperationException` on any 4xx or 5xx answer, with the status code in the message. Deleting the calling client or the last admin client answers 400, an unknown ID answers 404.
+Unlike the user helpers, these methods throw `InvalidOperationException` on any 4xx or 5xx answer, with the status code in the message. Deleting the calling client or the last admin client answers 400, an unknown ID answers 404. The four methods that take an ID throw `ArgumentException` for an empty or whitespace ID before sending anything, because an empty ID would turn `/clients//revoke-tokens` into the caller's own self route.
+
+The list routes (`/clients/list` and `/u/list`) are sent as POST with a JSON body. The server also accepts QUERY, but proxies such as the Azure Container Apps ingress reject it, so the SDK sends POST.
 
 Create a server app and read its credentials:
 

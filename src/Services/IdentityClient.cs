@@ -1088,7 +1088,7 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
     /// <summary>
     /// Admin operation: List users with pagination and filtering.
-    /// Sends QUERY /u/list (RFC 10008); the server also accepts POST.
+    /// Sends POST /u/list with a JSON body. The server also accepts QUERY, but proxies such as the Azure Container Apps ingress reject it, so the SDK sends POST.
     /// </summary>
     /// <param name="pageOptions">Pagination options</param>
     /// <param name="filter">Filter options</param>
@@ -1166,9 +1166,9 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
             var queryString = string.Join("&", queryParams);
             var url = $"/u/list?{queryString}";
             
-            // QUERY (RFC 10008) with a JSON body, like the Go SDK's AdminListUsers.
-            // The server still accepts POST on this route.
-            var httpRequest = new HttpRequestMessage(new HttpMethod("QUERY"), url)
+            // POST with a JSON body. The server also accepts QUERY, but proxies such as
+            // the Azure Container Apps ingress reject it.
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
             };
@@ -1452,8 +1452,9 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
             var url = $"/clients/list?page={GetCurrentPage(page.Page)}&size={GetLimit(page.Size)}";
 
-            // QUERY (RFC 10008) with a JSON body, like the Go SDK's AdminListClients.
-            var httpRequest = new HttpRequestMessage(new HttpMethod("QUERY"), url)
+            // POST with a JSON body. The server also accepts QUERY, but proxies such as
+            // the Azure Container Apps ingress reject it.
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
             };
@@ -1516,6 +1517,8 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
     public async Task<OAuth2Client> AdminGetClientAsync(string id)
     {
+        RequireClientId(id);
+
         if (!IsInitialized)
         {
             throw new InvalidOperationException("Client not initialized");
@@ -1552,6 +1555,8 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
     public async Task<bool> AdminDeleteClientAsync(string id)
     {
+        RequireClientId(id);
+
         if (!IsInitialized)
         {
             throw new InvalidOperationException("Client not initialized");
@@ -1563,6 +1568,8 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
     public async Task<ClientCredentials> AdminIssueClientTokenAsync(string id)
     {
+        RequireClientId(id);
+
         if (!IsInitialized)
         {
             throw new InvalidOperationException("Client not initialized");
@@ -1599,6 +1606,8 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
     public async Task<bool> AdminRevokeClientTokensAsync(string id)
     {
+        RequireClientId(id);
+
         if (!IsInitialized)
         {
             throw new InvalidOperationException("Client not initialized");
@@ -1606,6 +1615,18 @@ public class IdentityClient<TUser> : IIdentityClient<TUser> where TUser : class
 
         _logger.LogDebug("Revoking tokens of client: {Id}", id);
         return await SendNoContentAsync(new HttpRequestMessage(HttpMethod.Post, $"{ClientPath(id)}/revoke-tokens"), "Revoke client tokens");
+    }
+
+    /// <summary>
+    /// Refuses an empty client ID before anything is sent. An empty ID would turn
+    /// /clients//revoke-tokens into the caller's own self route.
+    /// </summary>
+    private static void RequireClientId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            throw new ArgumentException("Client id is required.", nameof(id));
+        }
     }
 
     /// <summary>

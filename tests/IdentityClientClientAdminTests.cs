@@ -201,10 +201,10 @@ public class IdentityClientClientAdminTests : IDisposable
     }
 
     [Fact]
-    public async Task AdminListClientsAsync_SendsQueryWithEmptyFilter()
+    public async Task AdminListClientsAsync_SendsPostWithEmptyFilter()
     {
         _mockServer
-            .Given(Request.Create().WithPath("/clients/list").UsingMethod("QUERY"))
+            .Given(Request.Create().WithPath("/clients/list").UsingPost())
             .RespondWith(JsonResponse(200, $$"""
                 {
                     "current_page": 1,
@@ -230,7 +230,7 @@ public class IdentityClientClientAdminTests : IDisposable
         Assert.Equal(2, item.Version);
 
         var request = ClientsRequest();
-        Assert.Equal("QUERY", request.Method);
+        Assert.Equal("POST", request.Method);
         Assert.Equal("/clients/list", request.Path);
         Assert.Equal("1", Assert.Single(request.Query!["page"]));
         Assert.Equal("100", Assert.Single(request.Query!["size"]));
@@ -246,7 +246,7 @@ public class IdentityClientClientAdminTests : IDisposable
     public async Task AdminListClientsAsync_SendsFilterBody()
     {
         _mockServer
-            .Given(Request.Create().WithPath("/clients/list").UsingMethod("QUERY"))
+            .Given(Request.Create().WithPath("/clients/list").UsingPost())
             .RespondWith(JsonResponse(200, """{"current_page":1,"page_size":0,"total_pages":0,"total_items":0,"has_next_page":false,"items":[]}"""));
 
         var client = await CreateClientAsync();
@@ -257,7 +257,7 @@ public class IdentityClientClientAdminTests : IDisposable
         Assert.Empty(page.Items);
 
         var request = ClientsRequest();
-        Assert.Equal("QUERY", request.Method);
+        Assert.Equal("POST", request.Method);
         using var body = JsonDocument.Parse(request.Body!);
         Assert.Equal("billing", body.RootElement.GetProperty("name").GetString());
         Assert.Equal("created_at", body.RootElement.GetProperty("sort").GetString());
@@ -393,5 +393,31 @@ public class IdentityClientClientAdminTests : IDisposable
         var client = await CreateClientAsync();
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => client.AdminRevokeClientTokensAsync(ClientId));
         Assert.Contains("404", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ClientIdMethods_EmptyId_ThrowArgumentExceptionWithoutRequest(string id)
+    {
+        var client = await CreateClientAsync();
+        var before = _mockServer.LogEntries.Count();
+
+        var calls = new Func<Task>[]
+        {
+            () => client.AdminGetClientAsync(id),
+            () => client.AdminDeleteClientAsync(id),
+            () => client.AdminIssueClientTokenAsync(id),
+            () => client.AdminRevokeClientTokensAsync(id)
+        };
+
+        foreach (var call in calls)
+        {
+            var ex = await Assert.ThrowsAsync<ArgumentException>(call);
+            Assert.Equal("id", ex.ParamName);
+            Assert.StartsWith("Client id is required.", ex.Message);
+        }
+
+        Assert.Equal(before, _mockServer.LogEntries.Count());
     }
 }

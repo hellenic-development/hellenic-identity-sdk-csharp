@@ -26,10 +26,10 @@ dotnet build --configuration Release
 ```bash
 # Create package manually
 dotnet pack src/Hellenic.Identity.SDK.csproj --configuration Release --output ./nupkg
-# dotnet nuget push ./nupkg/Hellenic.Identity.SDK.1.0.20.nupkg --api-key YOUR-API-KEY --source https://api.nuget.org/v3/index.json
+# dotnet nuget push ./nupkg/Hellenic.Identity.SDK.1.1.1.nupkg --api-key YOUR-API-KEY --source https://api.nuget.org/v3/index.json
 
 # Create package with specific version
-dotnet pack src/Hellenic.Identity.SDK.csproj --configuration Release --output ./nupkg -p:PackageVersion=1.0.20
+dotnet pack src/Hellenic.Identity.SDK.csproj --configuration Release --output ./nupkg -p:PackageVersion=1.1.1
 ```
 
 ### 3. Clean Build
@@ -48,7 +48,7 @@ The package metadata is configured in [`src/Hellenic.Identity.SDK.csproj`](./src
 <PropertyGroup>
     <!-- Package metadata for NuGet publishing -->
     <PackageId>Hellenic.Identity.SDK</PackageId>
-    <Version>1.0.20</Version>
+    <Version>1.1.1</Version>
     <Authors>Gerasimos Maropoulos</Authors>
     <Description>Hellenic Identity SDK for JWT authentication and user management with EdDSA/Ed25519 support and generic user model structure</Description>
     <PackageTags>jwt;authentication;identity;sdk;generic;hellenic;eddsa;ed25519</PackageTags>
@@ -66,13 +66,13 @@ Follow [Semantic Versioning (SemVer)](https://semver.org/) guidelines:
 
 - **Major** (`1.0.0` → `2.0.0`): Breaking changes
 - **Minor** (`1.0.0` → `1.1.0`): New features, backward compatible
-- **Patch** (`1.0.0` → `1.0.20`): Bug fixes, backward compatible
+- **Patch** (`1.0.0` → `1.1.1`): Bug fixes, backward compatible
 
 ### Update Version
 
 1. **Edit the `.csproj` file**:
 ```xml
-<Version>1.0.20</Version>
+<Version>1.1.1</Version>
 ```
 
 2. **Use command line**:

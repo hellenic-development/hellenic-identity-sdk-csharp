@@ -240,7 +240,8 @@ public interface IIdentityClient<TUser> where TUser : class
     Task<bool> AdminResetUserPasswordAsync(AdminResetUserPasswordRequest request);
 
     /// <summary>
-    /// Admin operation: List users with pagination and filtering
+    /// Admin operation: List users with pagination and filtering (POST /u/list).
+    /// The server also accepts QUERY, but proxies such as the Azure Container Apps ingress reject it, so the SDK sends POST.
     /// </summary>
     /// <param name="pageOptions">Pagination options</param>
     /// <param name="filter">Filter options</param>
@@ -362,7 +363,8 @@ public interface IIdentityClient<TUser> where TUser : class
     Task<CreateClientResponse> AdminCreateClientAsync(CreateClientRequest request);
 
     /// <summary>
-    /// Admin operation: List client applications with pagination (QUERY /clients/list).
+    /// Admin operation: List client applications with pagination (POST /clients/list).
+    /// The server also accepts QUERY, but proxies such as the Azure Container Apps ingress reject it, so the SDK sends POST.
     /// The secrets of the listed clients are blank, use <see cref="AdminGetClientAsync"/> to read one.
     /// </summary>
     /// <param name="page">Pagination options, Details is not used</param>
@@ -384,6 +386,7 @@ public interface IIdentityClient<TUser> where TUser : class
     /// <param name="id">Client ID</param>
     /// <returns>The client</returns>
     /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error (404 unknown client)</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="id"/> is null, empty or whitespace, before any request is sent</exception>
     Task<OAuth2Client> AdminGetClientAsync(string id);
 
     /// <summary>
@@ -393,6 +396,7 @@ public interface IIdentityClient<TUser> where TUser : class
     /// <param name="id">Client ID</param>
     /// <returns>True on 204, false on 304 (nothing was deleted)</returns>
     /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers 400 or above (400 when the caller deletes itself or the last admin client, 404 unknown client)</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="id"/> is null, empty or whitespace, before any request is sent</exception>
     Task<bool> AdminDeleteClientAsync(string id);
 
     /// <summary>
@@ -402,6 +406,7 @@ public interface IIdentityClient<TUser> where TUser : class
     /// <param name="id">Client ID</param>
     /// <returns>The client credentials, EncryptionKey is null for the user kind</returns>
     /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers with an error (404 unknown client)</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="id"/> is null, empty or whitespace, before any request is sent</exception>
     Task<ClientCredentials> AdminIssueClientTokenAsync(string id);
 
     /// <summary>
@@ -411,5 +416,6 @@ public interface IIdentityClient<TUser> where TUser : class
     /// <param name="id">Client ID</param>
     /// <returns>True on 204, false on 304 (the server does not send it today)</returns>
     /// <exception cref="InvalidOperationException">Thrown when client is not initialized or the server answers 400 or above (404 unknown client)</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="id"/> is null, empty or whitespace, before any request is sent</exception>
     Task<bool> AdminRevokeClientTokensAsync(string id);
 }
